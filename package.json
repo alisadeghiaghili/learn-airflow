@@ -1,0 +1,20 @@
+{
+  "name": "learn-airflow",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "An interactive Apache Airflow visualizer, sandbox, and tutorial — learnGitBranching for workflow orchestration.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}

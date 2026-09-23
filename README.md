@@ -1,12 +1,12 @@
 # LearnAirflow
 
-An interactive **Apache Airflow** visualizer, sandbox, and tutorial — the **learnGitBranching teaching model** applied to workflow orchestration.
+An interactive **Apache Airflow** visualizer, sandbox, and tutorial for workflow orchestration.
 
 **Live:** https://alisadeghiaghili.github.io/learn-airflow/
 
-LGB teaches git by making the commit tree visible and walking you through worlds of levels. LearnAirflow does the same for Airflow: the board shows **DAG folder → Graph → Runs**, and each level installs one idea.
+Airflow turns scheduled data work into **DAGs** — tasks, dependencies, schedules, retries, and run history. LearnAirflow makes that surface visible: **DAG folder → Graph → Runs**, with guided levels that teach the mental model, not just the commands.
 
-## Curriculum (LGB-style worlds)
+## Curriculum
 
 | World | ID prefix | What you learn |
 |-------|-----------|----------------|
@@ -17,10 +17,12 @@ LGB teaches git by making the commit tree visible and walking you through worlds
 
 Start at **`intro-1`**. Each level has:
 
-- intro dialogs (mental model first)
-- **Goal board** text (LGB goal-tree equivalent)
+- intro dialogs (what happens and why)
+- **Goal board** target state
 - live goal checks + solution commands + par (command golf)
 - `hint` / `show goal` / `show solution` / `undo` / `reset`
+- celebration + share (LinkedIn / X / Facebook) with your learned curriculum
+- progress saved in `localStorage` + cookie (resume next week)
 
 ```mermaid
 flowchart LR
@@ -36,10 +38,10 @@ flowchart LR
 ## Features
 
 - Sandbox with seeded DAGs
-- Terminal simulating core `airflow` CLI + authoring helpers
-- Goal panel with solution checklist + goal visual
-- Command golf + progress in `localStorage`
-- Share cards after each solve
+- Terminal: history (↑/↓), word-by-word Tab completion, command golf
+- Goal panel with neon current step + solution checklist
+- Post-command “Why” teaching blocks
+- Share cards after each solve (progress-aware copy)
 
 ## Quick start
 
@@ -77,9 +79,9 @@ Share links: open with `?NODEMO` to skip the intro dialog.
 ## Project layout
 
 ```
-src/engine/   # orchestration simulation, CLI interpreter, goal compare
-src/levels/   # LGB-style worlds + level definitions
-src/ui/       # board, terminal, dialogs, app shell
+src/engine/   # orchestration simulation, CLI interpreter, goal compare, teaching notes
+src/levels/   # worlds + level definitions
+src/ui/       # board, terminal, dialogs, celebrate/share
 tests/        # vitest — every official solution must solve its goal
 ```
 
@@ -87,10 +89,9 @@ tests/        # vitest — every official solution must solve its goal
 
 - Teaching simulator, not a real Airflow deployment. The scheduler processes runs immediately after `trigger`/`clear`.
 - Real docs: [airflow.apache.org/docs](https://airflow.apache.org/docs/)
-- Product shape inspired by [learnGitBranching](https://github.com/pcottle/learnGitBranching)
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Independent teaching simulator. Not affiliated with the Apache Software Foundation or pcottle/learnGitBranching.
+Independent teaching simulator. Not affiliated with the Apache Software Foundation.

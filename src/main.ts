@@ -14,7 +14,7 @@ if (!params.has('NODEMO')) {
     title: 'LearnAirflow',
     bodyHtml: renderMarkdown(
       [
-        'Interactive **Apache Airflow** tutorial in the **learnGitBranching** teaching model.',
+        'Interactive **Apache Airflow** tutorial — sandbox + guided levels.',
         '',
         'Board: **DAG folder → Graph → Runs**. Each level is one idea; solve worlds in order.',
         '',

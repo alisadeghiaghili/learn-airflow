@@ -130,7 +130,7 @@ describe('engine basics', () => {
   });
 });
 
-describe('LGB-style level solutions solve goals', () => {
+describe('level solutions solve goals', () => {
   for (const level of allLevels) {
     it(`solution works for ${level.id}`, () => {
       let state = structuredClone(level.startState);

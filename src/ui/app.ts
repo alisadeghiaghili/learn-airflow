@@ -201,7 +201,7 @@ export class App {
       <p class="objective">${level.objective}</p>
       ${
         level.goalVisual
-          ? `<div class="goal-visual"><div class="next-title">Goal board (like LGB goal tree)</div><div class="goal-visual-body">${escapeHtml(level.goalVisual)}</div></div>`
+          ? `<div class="goal-visual"><div class="next-title">Goal board</div><div class="goal-visual-body">${escapeHtml(level.goalVisual)}</div></div>`
           : ''
       }
       <div class="par-note">${golfNote}${solved ? ' · SOLVED' : ''}</div>
@@ -256,7 +256,7 @@ export class App {
     const done = allLevels.filter((l) => this.progress[l.id]?.solved).length;
     const modal = showModal({
       title: 'Levels',
-      bodyHtml: `<p>LGB-style path: solve worlds in order. <strong>${done}/${total}</strong> cleared — progress saves in this browser.</p>${body}`,
+      bodyHtml: `<p>Guided path: solve worlds in order. <strong>${done}/${total}</strong> cleared — progress saves in this browser (cookie + localStorage).</p>${body}`,
       actions: [{ label: 'Close', className: 'ghost', onClick: () => modal.close() }],
     });
 
@@ -513,7 +513,7 @@ export class App {
     this.afterStateChange();
 
     if (!document.querySelector('.overlay .modal')) {
-      this.terminal.focus();
+      this.terminal.focusSoon();
     }
   }
 
@@ -581,9 +581,9 @@ export class App {
     const cheers = [
       'Nailed it. This orchestration concept is yours now.',
       'Boom — another Airflow skill banked.',
-      'DAG solved. Share the graph.',
-      'Task instances green. Confidence up.',
-      'Scheduler approved.',
+      'DAG solved. You understand why, not just which keys.',
+      'Task instances green. Mental model updated.',
+      'Scheduler approved — and so do I.',
     ];
     const cheer = cheers[Math.floor(Math.random() * cheers.length)]!;
 

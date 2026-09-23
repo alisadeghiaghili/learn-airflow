@@ -1,12 +1,12 @@
 # LearnAirflow — Design Spec
 
-Interactive Apache Airflow visualizer + tutorial, modeled after learnGitBranching’s product shape
+Interactive Apache Airflow visualizer + tutorial in a terminal-native learning-game shape
 (sandbox + terminal + goal levels + undo/reset/hint/solution), with an Airflow-native
-visualization instead of a git commit tree — the same product shape as LearnDVC.
+visualization (DAG folder, task graph, run grid).
 
 ## Style anchor
 
-- **Product genre**: terminal-native learning game (LGB, but for workflow orchestration).
+- **Product genre**: terminal-native learning game for workflow orchestration.
 - **Real-world feel**: night-shift ops control board for data jobs — DAG folder magnets,
   a task graph, and a run grid — not a SaaS marketing page and not an Airflow UI clone.
 - **Mode**: expressive educational UI (game chrome + technical density). Not admin CRUD.
@@ -54,7 +54,7 @@ visualization instead of a git commit tree — the same product shape as LearnDV
 ```
 
 - Max density without clutter: three zones, 12–16px gaps, 24px page gutter.
-- Level goal opens as a right dock (LGB-inspired, same as LearnDVC).
+- Level goal opens as a right dock with a neon-highlighted current step.
 - Responsive: stack zones vertically under ~900px; terminal always last.
 
 ## Signature moment
@@ -71,7 +71,7 @@ That single cascade teaches Airflow’s core idea better than any paragraph.
 
 - Not a clone of the Airflow webserver UI. Graph + run grid are teaching projections.
 - No purple AI gradient hero, no stock photos, no marketing landing page as home.
-- Home = sandbox (or intro dialog → first level), like LGB / LearnDVC.
+- Home = sandbox (or intro dialog → first level).
 
 ## Product surface
 

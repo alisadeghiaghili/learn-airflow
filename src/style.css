@@ -481,10 +481,12 @@ button.ghost {
 
 .goal-list li.current {
   border-color: #ff8c1a;
-  background: color-mix(in srgb, #ff8c1a 12%, var(--ink));
+  background: color-mix(in srgb, #ff8c1a 18%, var(--ink));
   box-shadow:
-    0 0 0 1px color-mix(in srgb, #ff8c1a 70%, transparent),
-    0 0 14px color-mix(in srgb, #ff8c1a 45%, transparent);
+    0 0 0 2px #ff8c1a,
+    0 0 18px color-mix(in srgb, #ff8c1a 70%, transparent),
+    0 0 36px color-mix(in srgb, #ff8c1a 40%, transparent),
+    inset 0 0 18px color-mix(in srgb, #ff8c1a 12%, transparent);
   animation: neon-pulse 1.6s ease-in-out infinite;
 }
 
@@ -978,12 +980,14 @@ button.ghost {
   padding: 0 12px;
   font-family: var(--mono);
   font-size: 13px;
-  color: color-mix(in srgb, var(--haze) 85%, transparent);
-  opacity: 0.75;
+  color: color-mix(in srgb, var(--haze) 70%, transparent);
+  opacity: 0.85;
   pointer-events: none;
   white-space: pre;
   overflow: hidden;
   max-width: calc(100% - 8px);
+  z-index: 2;
+  line-height: 1;
 }
 
 .term-ghost[data-visible='1'] {
@@ -1002,6 +1006,8 @@ button.ghost {
   min-height: 40px;
   position: relative;
   z-index: 1;
+  /* Solid ink so typed text never visually stacks with the ghost suffix */
+  background: var(--ink);
 }
 
 .term-input:focus {

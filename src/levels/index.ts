@@ -1,8 +1,8 @@
 /**
- * LGB-style curriculum for Apache Airflow.
+ * Curriculum for Apache Airflow.
  *
- * Pedagogy mirrors learnGitBranching:
- * - Worlds (series) separate conceptual domains
+ * Teaching model:
+ * - Worlds separate conceptual domains
  * - Each level installs ONE idea
  * - start state → few commands → goal board state
  * - Dialogs teach the mental model BEFORE typing
@@ -70,7 +70,7 @@ function withFailedRun(state: AirflowState, dagId: string): AirflowState {
 }
 
 // ─────────────────────────────────────────────────────────────
-// WORLD 1 — Introduction  (LGB "Introduction to Commits")
+// WORLD 1 — Introduction
 // One command family at a time: init → DAG → task → unpause → trigger
 // ─────────────────────────────────────────────────────────────
 
@@ -223,13 +223,13 @@ export const introLevels: LevelDef[] = [
     learning: [
       'trigger creates run_id `manual__<logical_date>`',
       'Scheduler processes ready tasks immediately in this sim',
-      'This is the LGB "watch the tree update" moment for Airflow',
+      'Watch the board: run card + task state cascade to green',
     ],
     startDialog: [
       {
         title: 'Last time: unpaused, still no runs',
         markdown:
-          'Unpause only *allows* scheduled work. A **manual trigger** creates a run now:\n\n```\nairflow dags trigger hello_airflow\n```\n\n**Watch the board:**\n\n1. Runs zone gets a `manual__…` card\n2. Graph node `print_date` flips none → queued → running → **success**\n\nThat cascade is the signature of Airflow, like commits appearing on the LGB tree.',
+          'Unpause only *allows* scheduled work. A **manual trigger** creates a run now:\n\n```\nairflow dags trigger hello_airflow\n```\n\n**Watch the board:**\n\n1. Runs zone gets a `manual__…` card\n2. Graph node `print_date` flips none → queued → running → **success**\n\nThat cascade is the signature of Airflow: a logical date, a run id, then task instances moving through states.',
       },
     ],
     startState: projectWith('hello_airflow', {
@@ -280,7 +280,7 @@ export const introLevels: LevelDef[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// WORLD 2 — Structure  (LGB "Branching / Moving Work Around")
+// WORLD 2 — Structure
 // Dependencies: independent tasks → edges → chain → failure → clear
 // ─────────────────────────────────────────────────────────────
 
@@ -304,7 +304,7 @@ export const structureLevels: LevelDef[] = [
       {
         title: 'World 2 — Structure',
         markdown:
-          'In LGB you learned branches change *what commits connect*.\n\nIn Airflow, **dependencies** change *what tasks wait for what*.\n\nFirst, two nodes:\n\n```\ntask add etl_daily transform --op PythonOperator\n```\n\nDo **not** wire them yet.',
+          'Airflow decides *what waits for what* via **dependencies**.\n\nFirst, two nodes:\n\n```\ntask add etl_daily transform --op PythonOperator\n```\n\nDo **not** wire them yet.',
       },
     ],
     startState: projectWith('etl_daily', {
@@ -648,7 +648,7 @@ export const scheduleLevels: LevelDef[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// WORLD 4 — Ops  (LGB remotes → production reliability)
+// WORLD 4 — Ops  (production reliability)
 // ─────────────────────────────────────────────────────────────
 
 export const opsLevels: LevelDef[] = [
@@ -671,7 +671,7 @@ export const opsLevels: LevelDef[] = [
       {
         title: 'World 4 — Ops',
         markdown:
-          'Like LGB remotes: production state outside your laptop.\n\n```\nairflow variables set batch_size 250\nairflow variables list\n```\n\nBoard goal: Variables pill = 1 · ops strip shows the key.',
+          'Production state lives **outside** your laptop and outside DAG code.\n\n```\nairflow variables set batch_size 250\nairflow variables list\n```\n\nBoard goal: Variables pill = 1 · ops strip shows the key.\n\nWhy not hardcode 250 in the DAG file? Because `dev` and `prod` batch sizes differ — Variables let the same DAG code run with different tunables per environment.',
       },
     ],
     startState: projectWith('etl_daily', {

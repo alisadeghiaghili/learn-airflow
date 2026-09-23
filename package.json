@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "An interactive Apache Airflow visualizer, sandbox, and tutorial — learnGitBranching for workflow orchestration.",
+  "description": "An interactive Apache Airflow visualizer, sandbox, and tutorial for workflow orchestration.",
   "type": "module",
   "scripts": {
     "dev": "vite",

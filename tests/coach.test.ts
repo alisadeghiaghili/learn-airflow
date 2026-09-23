@@ -27,7 +27,7 @@ describe('solution checklist mirrors goals', () => {
     }
   });
 
-  it('every LGB-style level has a goalVisual target', () => {
+  it('every level has a goalVisual target', () => {
     for (const level of allLevels) {
       expect(level.goalVisual, `missing goalVisual on ${level.id}`).toBeTruthy();
     }

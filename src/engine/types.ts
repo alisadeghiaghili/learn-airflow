@@ -129,7 +129,7 @@ export interface LevelDef {
   par: number;
   hint: string;
   objective: string;
-  /** Conceptual target board state — LGB-style goal tree. */
+  /** Conceptual target board state for the goal panel. */
   goalVisual?: string;
   learning: string[];
   startDialog: DialogSlide[];

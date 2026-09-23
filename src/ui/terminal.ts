@@ -42,6 +42,14 @@ const BASE_COMMANDS = [
   'help',
 ];
 
+/** Split command line into words while remembering a trailing space. */
+function splitWords(value: string): { words: string[]; trailingSpace: boolean } {
+  if (!value) return { words: [], trailingSpace: false };
+  const trailingSpace = /\s$/.test(value);
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  return { words, trailingSpace };
+}
+
 export class TerminalView {
   private logEl: HTMLElement;
   private inputEl: HTMLInputElement;
@@ -54,9 +62,9 @@ export class TerminalView {
   private draft = '';
   private hint = '';
   private extraCompletions: string[] = [];
-  private tabCycle: string[] = [];
+  private tabWords: string[] = [];
   private tabIdx = 0;
-  private tabPrefix = '';
+  private tabKey = '';
   private measureCtx: CanvasRenderingContext2D | null = null;
   private onSubmit: (cmd: string) => void;
 
@@ -71,7 +79,7 @@ export class TerminalView {
           <div class="term-ghost" id="term-ghost" aria-hidden="true"></div>
           <input id="term-input" class="term-input" autocomplete="off" spellcheck="false"
             placeholder=""
-            aria-label="Airflow command input. Tab completes the next command. Arrow up and down browse history." />
+            aria-label="Airflow command input. Tab completes word by word. Arrow up and down browse history." />
         </div>
       </div>
     `;
@@ -84,15 +92,22 @@ export class TerminalView {
     this.inputEl.addEventListener('input', () => this.syncGhost());
   }
 
+  /** Keep the caret in the prompt after every command. */
   focus(): void {
     if (document.querySelector('.overlay .modal')) return;
-    this.inputEl.focus();
+    this.inputEl.focus({ preventScroll: true });
     const len = this.inputEl.value.length;
     try {
       this.inputEl.setSelectionRange(len, len);
     } catch {
-      // ignore
+      // ignore unsupported input types
     }
+  }
+
+  /** Force focus even after modal close (next frame so DOM is settled). */
+  focusSoon(): void {
+    requestAnimationFrame(() => this.focus());
+    window.setTimeout(() => this.focus(), 0);
   }
 
   setLog(lines: LogLine[]): void {
@@ -122,9 +137,8 @@ export class TerminalView {
   private render(): void {
     const html = this.lines
       .map((l) => {
-        const cls = l.kind;
         const prefix = l.kind === 'cmd' ? '$ ' : '';
-        return `<div class="${cls}">${prefix}${escapeHtml(l.text)}</div>`;
+        return `<div class="${l.kind}">${prefix}${escapeHtml(l.text)}</div>`;
       })
       .join('');
     this.logEl.innerHTML = html;
@@ -133,12 +147,13 @@ export class TerminalView {
 
   setHint(command: string | null): void {
     this.hint = command ?? '';
+    // Placeholder never duplicates the ghost line — avoid stacked text.
     this.inputEl.placeholder = this.hint
-      ? `Tab → ${this.hint}`
+      ? 'type · Tab word · ↑↓ history'
       : 'Type a command — help · levels · hint · steps';
     this.hintEl.hidden = !this.hint;
     if (this.hint) {
-      this.hintEl.innerHTML = `Next: <code>${escapeHtml(this.hint)}</code> <span class="par-note">· press Tab to fill</span>`;
+      this.hintEl.innerHTML = `Next: <code>${escapeHtml(this.hint)}</code> <span class="par-note">· Tab completes word by word</span>`;
     } else {
       this.hintEl.textContent = '';
     }
@@ -149,31 +164,68 @@ export class TerminalView {
     this.extraCompletions = commands.filter(Boolean);
   }
 
-  private allCompletions(): string[] {
+  private allCommands(): string[] {
     const set = new Set<string>([
       ...this.extraCompletions,
       ...BASE_COMMANDS,
       ...this.history.slice().reverse(),
-    ]);
+      this.hint,
+    ].filter(Boolean));
     return [...set];
   }
 
-  private candidates(prefix: string): string[] {
-    const p = prefix.toLowerCase();
-    return this.allCompletions().filter(
-      (c) => c.toLowerCase().startsWith(p) && c.toLowerCase() !== p,
-    );
+  /**
+   * Next-word completions for the token under the caret.
+   * Completes the current word first; if that word is already exact, proposes the following word.
+   */
+  private wordCandidates(value: string): string[] {
+    const { words, trailingSpace } = splitWords(value);
+    const typed = trailingSpace ? '' : (words[words.length - 1] ?? '');
+    const headWords = trailingSpace ? words : words.slice(0, -1);
+    const head = headWords.length ? headWords.join(' ') + ' ' : '';
+
+    const next = new Set<string>();
+    for (const cmd of this.allCommands()) {
+      if (!cmd.toLowerCase().startsWith(head.toLowerCase())) continue;
+      const rest = cmd.slice(head.length);
+      const restWords = rest.split(/\s+/).filter(Boolean);
+      const token = restWords[0] ?? '';
+      if (!token) continue;
+      if (!typed) {
+        next.add(token);
+        continue;
+      }
+      if (token.toLowerCase().startsWith(typed.toLowerCase()) && token.toLowerCase() !== typed.toLowerCase()) {
+        next.add(token);
+      }
+    }
+
+    // If current word is already an exact unique token, offer the following word instead.
+    if (typed && !trailingSpace) {
+      const exact = [...next].length === 0;
+      if (exact) {
+        const headWithWord = head + typed;
+        for (const cmd of this.allCommands()) {
+          if (!cmd.toLowerCase().startsWith(headWithWord.toLowerCase())) continue;
+          const rest = cmd.slice(headWithWord.length).trim();
+          const token = rest.split(/\s+/)[0];
+          if (token) next.add(`${typed} ${token}`);
+        }
+      }
+    }
+    return [...next];
   }
 
-  private bestCompletion(value: string): string | null {
-    if (!value) return this.hint || null;
-    const matches = this.candidates(value);
-    if (!matches.length) {
-      return this.hint && this.hint.toLowerCase().startsWith(value.toLowerCase())
-        ? this.hint
-        : null;
+  /** Ghost preview: remaining characters of the best word completion. */
+  private bestWordCompletion(value: string): string | null {
+    const candidates = this.wordCandidates(value);
+    if (!candidates.length) {
+      if (this.hint && this.hint.toLowerCase().startsWith(value.toLowerCase())) {
+        return this.hint;
+      }
+      return null;
     }
-    return matches[0]!;
+    return candidates[0]!;
   }
 
   private measureText(text: string): number {
@@ -181,94 +233,100 @@ export class TerminalView {
       this.measureCtx = document.createElement('canvas').getContext('2d');
     }
     const ctx = this.measureCtx;
-    if (!ctx) return text.length * 7.2;
+    const pad = 12; // .term-input horizontal padding
+    if (!ctx) return text.length * 7.2 + pad;
     const font = getComputedStyle(this.inputEl).font;
     ctx.font = font || '13px Consolas, monospace';
-    return ctx.measureText(text).width;
+    return ctx.measureText(text).width + pad;
+  }
+
+  private hideGhost(): void {
+    this.ghostEl.textContent = '';
+    this.ghostEl.dataset.visible = '0';
+    this.wrapEl.classList.remove('has-ghost');
   }
 
   private syncGhost(): void {
     const value = this.inputEl.value;
-    const completion = this.bestCompletion(value);
-
-    if (!completion) {
-      this.ghostEl.textContent = '';
-      this.ghostEl.dataset.visible = '0';
-      this.wrapEl.classList.remove('has-ghost');
+    const word = this.bestWordCompletion(value);
+    if (!word) {
+      this.hideGhost();
       return;
     }
 
+    // Ghost shows only the untyped suffix after the caret/text, never a second full line.
+    let suffix: string;
     if (!value) {
-      this.ghostEl.textContent = completion;
-      this.ghostEl.style.left = '0px';
-      this.ghostEl.dataset.visible = '1';
-      this.wrapEl.classList.add('has-ghost');
+      suffix = word;
+    } else if (word.toLowerCase().startsWith(value.toLowerCase())) {
+      suffix = word.slice(value.length);
+    } else {
+      const { words, trailingSpace } = splitWords(value);
+      const typed = trailingSpace ? '' : (words[words.length - 1] ?? '');
+      suffix = word.toLowerCase().startsWith(typed.toLowerCase()) ? word.slice(typed.length) : '';
+    }
+
+    if (!suffix) {
+      this.hideGhost();
       return;
     }
 
-    if (
-      !completion.toLowerCase().startsWith(value.toLowerCase()) ||
-      completion.length <= value.length
-    ) {
-      this.ghostEl.textContent = '';
-      this.ghostEl.dataset.visible = '0';
-      this.wrapEl.classList.remove('has-ghost');
-      return;
-    }
-
-    const rest = completion.slice(value.length);
-    this.ghostEl.textContent = rest;
+    this.ghostEl.textContent = suffix;
     this.ghostEl.style.left = `${this.measureText(value)}px`;
     this.ghostEl.dataset.visible = '1';
     this.wrapEl.classList.add('has-ghost');
   }
 
+  /** Real-terminal Tab: complete one word (or cycle words), never dump the whole line. */
   private applyTab(e: KeyboardEvent): void {
     e.preventDefault();
     const value = this.inputEl.value;
+    const candidates = this.wordCandidates(value);
 
-    if (!value && this.hint) {
-      this.inputEl.value = this.hint;
-      this.tabCycle = [this.hint];
-      this.tabIdx = 0;
-      this.tabPrefix = '';
-      this.focus();
-      this.syncGhost();
-      return;
-    }
-
-    const matches = value ? this.candidates(value) : BASE_COMMANDS.slice(0, 12);
-
-    if (!matches.length) {
+    if (!candidates.length) {
+      // Fall back: if hint continues the line, complete up to the next word of hint.
       if (this.hint && this.hint.toLowerCase().startsWith(value.toLowerCase())) {
-        this.inputEl.value = this.hint;
-        this.focus();
-        this.syncGhost();
+        const { words, trailingSpace } = splitWords(value);
+        const headWords = trailingSpace ? words : words.slice(0, -1);
+        const hintWords = this.hint.split(/\s+/).filter(Boolean);
+        const targetLen = (trailingSpace ? words.length : words.length) + (trailingSpace ? 1 : 0);
+        // complete the incomplete last word of the hint
+        const completeTo = trailingSpace
+          ? hintWords.slice(0, words.length + 1).join(' ') + ' '
+          : hintWords.slice(0, Math.max(words.length, headWords.length + 1)).join(' ');
+        if (completeTo !== value && completeTo.toLowerCase().startsWith(value.toLowerCase())) {
+          this.inputEl.value = completeTo;
+          void targetLen;
+          this.focus();
+          this.syncGhost();
+        }
       }
       return;
     }
 
-    if (value !== this.tabPrefix || !this.tabCycle.length) {
-      this.tabPrefix = value;
-      this.tabCycle = matches;
+    const key = value;
+    if (key !== this.tabKey || !this.tabWords.length) {
+      this.tabKey = key;
+      this.tabWords = candidates;
       this.tabIdx = 0;
     } else {
-      this.tabIdx = (this.tabIdx + 1) % this.tabCycle.length;
+      this.tabIdx = (this.tabIdx + 1) % this.tabWords.length;
     }
 
-    const chosen = this.tabCycle[this.tabIdx] ?? matches[0]!;
-    this.inputEl.value = chosen;
+    const chosen = this.tabWords[this.tabIdx] ?? candidates[0]!;
+    const { words, trailingSpace } = splitWords(value);
+    const headWords = trailingSpace ? words : words.slice(0, -1);
+    const nextValue = (headWords.length ? headWords.join(' ') + ' ' : '') + chosen;
+
+    this.inputEl.value = nextValue;
     this.focus();
     this.syncGhost();
 
-    if (this.tabCycle.length > 1) {
-      const preview = this.tabCycle
-        .slice(0, 5)
-        .map((m) => escapeHtml(m))
-        .join(' · ');
+    if (this.tabWords.length > 1) {
+      const preview = this.tabWords.slice(0, 6).map((m) => escapeHtml(m)).join(' · ');
       this.hintEl.hidden = false;
-      this.hintEl.innerHTML = `Tab <strong>${this.tabIdx + 1}/${this.tabCycle.length}</strong>: ${preview}${
-        this.tabCycle.length > 5 ? ' …' : ''
+      this.hintEl.innerHTML = `Tab word <strong>${this.tabIdx + 1}/${this.tabWords.length}</strong>: ${preview}${
+        this.tabWords.length > 6 ? ' …' : ''
       }`;
     }
   }
@@ -281,8 +339,8 @@ export class TerminalView {
     if (e.key === 'Escape') {
       e.preventDefault();
       this.inputEl.value = '';
-      this.tabCycle = [];
-      this.tabPrefix = '';
+      this.tabWords = [];
+      this.tabKey = '';
       this.syncGhost();
       return;
     }
@@ -296,10 +354,10 @@ export class TerminalView {
         this.history.push(trimmed);
         this.historyIdx = this.history.length;
       }
-      this.tabCycle = [];
-      this.tabPrefix = '';
+      this.tabWords = [];
+      this.tabKey = '';
       this.onSubmit(value);
-      this.focus();
+      this.focusSoon();
       this.syncGhost();
       return;
     }
@@ -311,8 +369,9 @@ export class TerminalView {
       }
       this.historyIdx = Math.max(0, this.historyIdx - 1);
       this.inputEl.value = this.history[this.historyIdx] ?? '';
-      this.tabCycle = [];
+      this.tabWords = [];
       this.syncGhost();
+      this.focus();
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -321,8 +380,9 @@ export class TerminalView {
       this.historyIdx = Math.min(this.history.length, this.historyIdx + 1);
       this.inputEl.value =
         this.historyIdx >= this.history.length ? this.draft : (this.history[this.historyIdx] ?? '');
-      this.tabCycle = [];
+      this.tabWords = [];
       this.syncGhost();
+      this.focus();
     }
   }
 }

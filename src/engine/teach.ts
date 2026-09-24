@@ -1,9 +1,6 @@
 import type { AirflowState } from './types';
 
-/**
- * "What just happened and why" blocks appended to simulator output.
- * Goal: leave with mental models, not only muscle memory.
- */
+/** Post-command “why it matters” — mental models over keystrokes. */
 
 export function teachBlock(title: string, lines: string[]): string {
   return ['', `── Why: ${title} ──`, ...lines.map((l) => `  ${l}`)].join('\n');
@@ -13,130 +10,126 @@ export function teachAfterCommand(raw: string, _state: AirflowState): string | n
   const cmd = raw.trim();
   if (!cmd) return null;
 
-  if (/^airflow\s+db\s+init\b/.test(cmd)) {
-    return teachBlock('airflow db init', [
-      'Creates the metadata database and local AIRFLOW_HOME layout (dags/, logs/, airflow.db).',
-      'DAGs are Python files in dags/. Runs, task instances, Variables, and Connections live in the DB.',
-      'The scheduler is what turns a DAG definition into DagRuns — not your shell.',
-      'Nothing executes yet. You only built the control plane.',
+  if (/^airflow\s+(db\s+init|info)\b/.test(cmd)) {
+    return teachBlock('architecture', [
+      'Airflow is four pieces: webserver (UI/API), scheduler (creates DagRuns + queues TIs),',
+      'metadata DB (runs, TIs, Variables, Connections), and an executor (Local / Celery / Kubernetes).',
+      'DAG files are *definitions* — the scheduler turns them into concrete runs at logical dates.',
+      'local_execute vs Celery vs K8s changes *where* tasks run, not *what* the DAG means.',
     ]);
   }
 
   if (/^dag\s+create\b/.test(cmd)) {
-    return teachBlock('dag create', [
-      'A DAG is a workflow definition: dag_id, schedule, start_date, catchup, tasks, dependencies.',
-      'In real Airflow this is a Python file with `with DAG(...) as dag:` — same mental model here.',
-      'New DAGs start **paused** on purpose: parse ≠ production. Unpause is an ops decision.',
-      'schedule=@daily means “create one run per day once this is live and the clock advances”.',
-      'catchup=false (default here) means only future intervals; true can fill history since start_date.',
+    return teachBlock('DAG definition', [
+      'dag_id + schedule + start_date + catchup + max_active_runs are the DAG-level contract.',
+      'Paused on purpose: parse ≠ production. Unpause is an ops decision after review.',
+      'max_active_runs=1 serializes calendar runs so yesterday’s backlog does not storm prod.',
+      'In Python this is `with DAG(dag_id=..., schedule=..., start_date=...)`.',
     ]);
   }
 
   if (/^task\s+add\b/.test(cmd)) {
-    return teachBlock('task add', [
-      'Tasks are the unit of work: one node, one task_id, one operator.',
-      'Operators decide HOW work runs — PythonOperator, BashOperator, EmailOperator, sensors…',
-      'task_id is what you inspect (`tasks states-for-dag-run`), clear, retry, and alert on.',
-      'retries=N is per-task: a failed attempt can be re-run automatically up to N times.',
-      'A DAG with zero tasks is a shell — define work before triggering.',
+    return teachBlock('tasks & operators', [
+      'A task is one unit of work: task_id + operator + retries + trigger_rule + pool/sla…',
+      'Operators are HOW (Python/Bash/Sensor/Branch/Empty). TaskFlow `@task` is the modern Python path.',
+      'Sensors wait for an external condition; deferrable sensors free the worker slot while waiting.',
+      'Mapped tasks (`--mapped N`) expand one definition into N task instances at runtime (dynamic mapping).',
     ]);
   }
 
-  if (/^task\s+(update|set-retries)\b/.test(cmd)) {
-    return teachBlock('task update', [
-      'Retries are metadata on the task, not on the whole DAG.',
-      'retries=0 + one transient failure = red run. retries≥1 often turns the same failure green.',
-      'In production you change this in the DAG file and redeploy; here the simulator edits it live.',
+  if (/^task\s+update\b/.test(cmd)) {
+    return teachBlock('task metadata', [
+      'retries + retry delay = resilience against flaky infrastructure.',
+      'trigger_rule = control-flow semantics when upstream is not “all success”.',
+      'pool + priority_weight = concurrency governance for expensive systems.',
+      'sla_minutes + email_on_failure = production signal paths, not just green/red in the UI.',
     ]);
   }
 
   if (/^dep\b/.test(cmd)) {
-    return teachBlock('dependency (>>)', [
-      '`a >> b` means b’s upstream is a: the scheduler will not start b until a succeeds.',
-      'Chain form `a >> b >> c` sets every edge in the line at once.',
-      'Without edges, tasks may run in any order — usually wrong for ETL.',
-      'If a fails, downstream becomes `upstream_failed` (blocked), not `failed` (executed and broke).',
+    return teachBlock('dependencies vs trigger rules', [
+      '`a >> b` only sets *ordering* (b waits for a to reach a terminal state relevant to its rule).',
+      'Default trigger_rule=all_success: if a fails, b becomes upstream_failed and never starts.',
+      'For “run cleanup even if upstream failed”, use trigger_rule=all_done or one_failed on the cleanup task.',
+      'This split is the #1 Airflow concept people miss.',
     ]);
   }
 
-  if (/^airflow\s+dags\s+unpause\b/.test(cmd)) {
-    return teachBlock('airflow dags unpause', [
-      'Paused DAGs are invisible to the scheduler for **new** runs.',
-      'Unpause does not run anything by itself — it only allows scheduled/manual work.',
-      'This is how teams hand a workflow to production scheduling after review.',
+  if (/^branch\b/.test(cmd)) {
+    return teachBlock('BranchPythonOperator', [
+      'At runtime a branch task returns a task_id (or list) to follow; other direct paths are skipped.',
+      'Skipped ≠ failed: downstream rules see `skipped` and may still run (none_failed, all_done…).',
+      'Classic use: “if table empty skip load else load”.',
     ]);
   }
 
-  if (/^airflow\s+dags\s+pause\b/.test(cmd)) {
-    return teachBlock('airflow dags pause', [
-      'Pause stops **future** scheduled runs. Existing run history stays.',
-      'Use it during incidents or while a workflow is under development.',
-      'You can still inspect task states and clear work on a paused DAG.',
-    ]);
-  }
-
-  if (/^airflow\s+dags\s+trigger\b/.test(cmd)) {
-    return teachBlock('airflow dags trigger', [
-      'Creates a manual DagRun: run_id `manual__<logical_date>`.',
-      'The scheduler then queues tasks with no unfinished upstream.',
-      'Watch the cascade: none → queued → running → success (or failed / upstream_failed).',
-      'Manual triggers are for backfills you choose, demos, and incident replays — production usually waits for the schedule.',
+  if (/^airflow\s+dags\s+(unpause|pause|trigger)\b/.test(cmd)) {
+    return teachBlock('runs & logical dates', [
+      'Each run has run_id, logical_date, and a data_interval [start, end).',
+      'logical_date is *not* wall-clock “now” — it labels which slice of data the run should process.',
+      'manual__… / scheduled__… / backfill__… tell you how the run was born.',
+      'Pause stops new runs; it does not delete history or stop in-flight work from finishing.',
     ]);
   }
 
   if (/^airflow\s+dags\s+backfill\b/.test(cmd)) {
-    return teachBlock('airflow dags backfill', [
-      'Backfill = explicit historical runs between start and end dates.',
-      'Each logical date becomes its own DagRun — same tasks, different data interval.',
-      'Use when a DAG is new but past partitions are needed, or after a logic fix.',
-      'catchup is the automatic cousin; backfill is the on-demand range tool.',
-    ]);
-  }
-
-  if (/^dag\s+update\b/.test(cmd)) {
-    return teachBlock('dag update', [
-      'Schedule and catchup live on the DAG, not on individual tasks.',
-      'None schedule = manual triggers only. Cron / @daily = calendar-driven runs.',
-      'Turning catchup on does not instantly create history — the scheduler (or a backfill) still does the work.',
+    return teachBlock('backfill vs catchup', [
+      'catchup: scheduler automatically creates missed intervals since start_date (when unpaused).',
+      'backfill: you explicitly ask for a date range — safer for one-off reprocessing.',
+      'Same DAG code, many DagRuns — one per logical date / data interval.',
     ]);
   }
 
   if (/^airflow\s+tasks\s+clear\b/.test(cmd)) {
-    return teachBlock('airflow tasks clear', [
-      'Clear resets selected task instances so the scheduler can run them again.',
-      'Always inspect first: `airflow tasks failed <dag_id>` shows what is actually red.',
-      'Fix the **upstream** before clearing a blocked task — clear does not repair bad code by itself.',
-      'Downstream `upstream_failed` requeues automatically once upstream is green (in this simulator).',
+    return teachBlock('clear & recovery', [
+      'Clear resets TIs so the scheduler can run them again (try_number restarts).',
+      'Inspect first: `airflow tasks failed` + `states-for-dag-run` + `logs show`.',
+      'Fix root cause (code/config) before clear — otherwise you just buy another red run.',
     ]);
   }
 
-  if (/^airflow\s+tasks\s+states-for-dag-run\b/.test(cmd)) {
-    return teachBlock('states-for-dag-run', [
-      'This is the ground truth for one run: every task_id and its try_number/state.',
-      'Learn to read it like `git status` — it answers “what is blocking me right now?”',
+  if (/^xcom\s+get\b/.test(cmd) || /--taskflow\b/.test(cmd)) {
+    return teachBlock('XCom & TaskFlow', [
+      'XCom (cross-communication) passes small Python values between tasks via the metadata DB.',
+      'TaskFlow `@task` return values become XComs automatically — that is why it feels lighter.',
+      'Do not push large payloads through XCom; push a path/URI and read the artifact from storage.',
     ]);
   }
 
-  if (/^airflow\s+variables\s+set\b/.test(cmd)) {
-    return teachBlock('airflow variables set', [
-      'Variables are key/value config in the metadata DB, not in DAG source.',
-      'Use them for env-specific tunables (batch_size, endpoints, feature flags).',
-      'Credentials belong in Connections or a secret backend — not plain Variables.',
+  if (/^pool\s+set\b/.test(cmd)) {
+    return teachBlock('pools & priority', [
+      'Pools cap concurrent slots for a class of tasks (e.g. one-at-a-time against a fragile API).',
+      'priority_weight decides who gets the slot first when the pool is saturated.',
     ]);
   }
 
-  if (/^airflow\s+connections\s+add\b/.test(cmd)) {
-    return teachBlock('airflow connections add', [
-      'Connections say HOW tasks reach external systems (Postgres, S3, APIs).',
-      'DAG code references `conn_id`; secrets stay out of git.',
-      'URI encodes type + host + auth — treat the whole string as a secret.',
+  if (/^airflow\s+executor\s+set\b/.test(cmd)) {
+    return teachBlock('executors', [
+      'LocalExecutor: tasks as local processes (dev/small).',
+      'CeleryExecutor: distributed workers (classic prod).',
+      'KubernetesExecutor: one pod per task (elastic, isolated).',
+      'Choosing an executor is an ops/SRE decision — DAG code stays the same.',
     ]);
   }
 
-  if (/^airflow\s+dags\s+list\b/.test(cmd) || /^ls\b/.test(cmd)) {
-    return teachBlock('listing', [
-      'A parsed DAG shows up here after its Python file imports cleanly.',
-      'Paused vs unpaused is the first production flag you should read on every card.',
+  if (/^dag\s+test\b/.test(cmd)) {
+    return teachBlock('testing DAGs', [
+      '`dag.test()` runs tasks in-process without a full scheduler loop — fast CI feedback.',
+      'Treat DAGs as code: unit-test callables, integration-test the graph, validate with `dags test`.',
+    ]);
+  }
+
+  if (/^dataset\s+register\b/.test(cmd)) {
+    return teachBlock('data-aware scheduling', [
+      'Datasets let DAGs trigger on data events, not only wall-clock schedules.',
+      'Outlet dataset updated by producer → consumers can fire when data lands.',
+    ]);
+  }
+
+  if (/^logs\s+show\b/.test(cmd)) {
+    return teachBlock('logs', [
+      'Every TI writes a log file. First place to look when a task is red.',
+      'try_number tells you which attempt you are reading.',
     ]);
   }
 

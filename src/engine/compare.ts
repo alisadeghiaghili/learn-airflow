@@ -1,11 +1,15 @@
-import type { AirflowState, GoalCheck } from './types';
-import { allTasksSuccess, findDag, findTask, hasEdge, latestRun } from './state';
+import type { AirflowState, GoalCheck, TriggerRule } from './types';
+import { allTasksSuccess, findDag, findTask, hasEdge, latestRun, TRIGGER_RULES } from './state';
 
 export interface GoalStatus {
   met: boolean;
   label: string;
   detail: string;
   command?: string;
+}
+
+function ruleOf(task: { triggerRule: TriggerRule } | undefined): TriggerRule {
+  return task?.triggerRule ?? 'all_success';
 }
 
 function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
@@ -16,18 +20,14 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
       return {
         met,
         label: want ? 'Airflow metadata initialized' : 'Airflow not initialized',
-        detail: met ? 'ok' : want ? 'run `airflow db init`' : 'already initialized',
+        detail: met ? 'ok' : 'run `airflow db init`',
         command: want && !met ? 'airflow db init' : undefined,
       };
     }
     case 'schedulerRunning': {
       const want = check.value !== false;
       const met = state.schedulerRunning === want;
-      return {
-        met,
-        label: want ? 'Scheduler running' : 'Scheduler stopped',
-        detail: met ? 'ok' : state.metaInitialized ? 'initialize db / start project' : 'run `airflow db init`',
-      };
+      return { met, label: want ? 'Scheduler running' : 'Scheduler stopped', detail: met ? 'ok' : 'init project' };
     }
     case 'dagExists': {
       const met = !!findDag(state, check.dagId);
@@ -44,53 +44,31 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
       return {
         met,
         label: `DAG '${check.dagId}' is ${check.paused ? 'paused' : 'unpaused'}`,
-        detail: met
-          ? 'ok'
-          : dag
-            ? `run \`airflow dags ${check.paused ? 'pause' : 'unpause'} ${check.dagId}\``
-            : 'dag missing',
-        command:
-          dag && dag.paused !== check.paused
-            ? `airflow dags ${check.paused ? 'pause' : 'unpause'} ${check.dagId}`
-            : undefined,
+        detail: met ? 'ok' : `run \`airflow dags ${check.paused ? 'pause' : 'unpause'} ${check.dagId}\``,
+        command: dag && dag.paused !== check.paused ? `airflow dags ${check.paused ? 'pause' : 'unpause'} ${check.dagId}` : undefined,
       };
     }
     case 'dagSchedule': {
       const dag = findDag(state, check.dagId);
       const met = !!dag && dag.schedule === check.schedule;
-      return {
-        met,
-        label: `DAG '${check.dagId}' schedule = ${check.schedule ?? 'None'}`,
-        detail: met ? 'ok' : `current=${dag?.schedule ?? '(missing dag)'}`,
-      };
+      return { met, label: `schedule = ${check.schedule ?? 'None'}`, detail: met ? 'ok' : `current=${dag?.schedule ?? '?'}` };
     }
     case 'dagCatchup': {
       const dag = findDag(state, check.dagId);
       const met = !!dag && dag.catchup === check.value;
-      return {
-        met,
-        label: `DAG '${check.dagId}' catchup=${check.value}`,
-        detail: met ? 'ok' : `current=${dag?.catchup ?? '(missing)'}`,
-      };
+      return { met, label: `catchup=${check.value}`, detail: met ? 'ok' : `current=${dag?.catchup}` };
     }
     case 'taskExists': {
       const task = findTask(findDag(state, check.dagId), check.taskId);
       const opOk = !check.operator || task?.operator === check.operator;
       return {
         met: !!task && opOk,
-        label: check.operator
-          ? `Task '${check.taskId}' (${check.operator})`
-          : `Task '${check.taskId}' exists`,
-        detail: task
-          ? opOk
-            ? 'ok'
-            : `operator=${task.operator}`
-          : `run \`task add ${check.dagId} ${check.taskId} --op ${check.operator ?? 'PythonOperator'}\``,
+        label: `Task '${check.taskId}'`,
+        detail: task ? (opOk ? 'ok' : `operator=${task.operator}`) : 'missing',
       };
     }
     case 'edgeExists': {
-      const dag = findDag(state, check.dagId);
-      const met = hasEdge(dag, check.from, check.to);
+      const met = hasEdge(findDag(state, check.dagId), check.from, check.to);
       return {
         met,
         label: `${check.from} >> ${check.to}`,
@@ -99,45 +77,31 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
       };
     }
     case 'taskCountAtLeast': {
-      const dag = findDag(state, check.dagId);
-      const n = dag?.tasks.length ?? 0;
-      return {
-        met: n >= check.min,
-        label: `At least ${check.min} task(s) in ${check.dagId}`,
-        detail: `current=${n}`,
-      };
+      const n = findDag(state, check.dagId)?.tasks.length ?? 0;
+      return { met: n >= check.min, label: `≥${check.min} tasks`, detail: `current=${n}` };
     }
     case 'runCountAtLeast': {
-      const dag = findDag(state, check.dagId);
-      const n = dag?.runs.length ?? 0;
+      const n = findDag(state, check.dagId)?.runs.length ?? 0;
       return {
         met: n >= check.min,
-        label: `At least ${check.min} run(s) for ${check.dagId}`,
+        label: `≥${check.min} runs`,
         detail: `current=${n}`,
         command: n < check.min ? `airflow dags trigger ${check.dagId}` : undefined,
       };
     }
     case 'runSuccess': {
-      const dag = findDag(state, check.dagId);
-      const met = !!dag?.runs.some((r) => r.state === 'success');
-      return {
-        met,
-        label: `Successful run for '${check.dagId}'`,
-        detail: met
-          ? 'ok'
-          : dag
-            ? `runs=${dag.runs.map((r) => r.state).join(',') || 'none'}`
-            : 'dag missing',
-      };
+      const met = !!findDag(state, check.dagId)?.runs.some((r) => r.state === 'success');
+      return { met, label: 'Successful run', detail: met ? 'ok' : 'trigger until success' };
     }
     case 'taskState': {
-      const dag = findDag(state, check.dagId);
-      const run = latestRun(dag);
-      const ti = run?.taskInstances.find((t) => t.task_id === check.taskId);
+      const run = latestRun(findDag(state, check.dagId));
+      const tis = run?.taskInstances.filter((t) => t.task_id === check.taskId) ?? [];
+      const ti =
+        check.mapIndex === undefined ? tis[0] : tis.find((t) => t.mapIndex === check.mapIndex);
       return {
         met: ti?.state === check.state,
         label: `${check.taskId} = ${check.state}`,
-        detail: `current=${ti?.state ?? 'none'}${run ? ` @ ${run.run_id}` : ''}`,
+        detail: `current=${ti?.state ?? 'none'}`,
       };
     }
     case 'allTasksSuccess': {
@@ -146,55 +110,99 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
       const met = allTasksSuccess(dag, run);
       return {
         met,
-        label: `All tasks success in latest '${check.dagId}' run`,
-        detail: met
-          ? 'ok'
-          : run
-            ? run.taskInstances.map((t) => `${t.task_id}:${t.state}`).join(' ')
-            : 'no run yet',
+        label: 'All tasks success/skipped',
+        detail: met ? 'ok' : (run?.taskInstances.map((t) => `${t.task_id}:${t.state}`).join(' ') ?? 'no run'),
       };
     }
     case 'variableSet': {
       const v = state.variables[check.key];
       const met = v !== undefined && (check.value === undefined || v === check.value);
-      return {
-        met,
-        label:
-          check.value === undefined
-            ? `Variable '${check.key}' set`
-            : `Variable ${check.key}=${check.value}`,
-        detail: v === undefined ? 'missing' : `current=${v}`,
-        command:
-          v === undefined || (check.value !== undefined && v !== check.value)
-            ? `airflow variables set ${check.key} ${check.value ?? '<value>'}`
-            : undefined,
-      };
+      return { met, label: `Var ${check.key}${check.value ? `=${check.value}` : ''}`, detail: v === undefined ? 'missing' : `current=${v}` };
     }
     case 'connectionExists': {
       const met = state.connections.some((c) => c.conn_id === check.connId);
-      return {
-        met,
-        label: `Connection '${check.connId}'`,
-        detail: met ? 'ok' : 'add with `airflow connections add`',
-      };
+      return { met, label: `Connection '${check.connId}'`, detail: met ? 'ok' : 'add connection' };
     }
     case 'retriesAtLeast': {
-      const task = findTask(findDag(state, check.dagId), check.taskId);
-      const n = task?.retries ?? 0;
-      return {
-        met: n >= check.min,
-        label: `${check.taskId} retries ≥ ${check.min}`,
-        detail: `current=${n}`,
-      };
+      const n = findTask(findDag(state, check.dagId), check.taskId)?.retries ?? 0;
+      return { met: n >= check.min, label: `${check.taskId} retries ≥ ${check.min}`, detail: `current=${n}` };
     }
     case 'backfillRunCountAtLeast': {
-      const dag = findDag(state, check.dagId);
-      const n = dag?.runs.filter((r) => r.runType === 'backfill').length ?? 0;
+      const n = findDag(state, check.dagId)?.runs.filter((r) => r.runType === 'backfill').length ?? 0;
+      return { met: n >= check.min, label: `≥${check.min} backfill runs`, detail: `current=${n}` };
+    }
+    case 'triggerRuleIs': {
+      const task = findTask(findDag(state, check.dagId), check.taskId);
+      const got = ruleOf(task);
+      return { met: got === check.rule, label: `${check.taskId} trigger_rule=${check.rule}`, detail: `current=${got}` };
+    }
+    case 'poolExists': {
+      const p = state.pools.find((x) => x.name === check.name);
+      const met = !!p && (check.slotsAtLeast === undefined || p.slots >= check.slotsAtLeast);
+      return { met, label: `Pool '${check.name}'`, detail: p ? `slots=${p.slots}` : 'missing' };
+    }
+    case 'taskPoolIs': {
+      const p = findTask(findDag(state, check.dagId), check.taskId)?.pool;
+      return { met: p === check.pool, label: `${check.taskId} pool=${check.pool}`, detail: `current=${p ?? '(none)'}` };
+    }
+    case 'slaAtLeast': {
+      const n = findTask(findDag(state, check.dagId), check.taskId)?.slaMinutes ?? 0;
+      return { met: n >= check.minutes, label: `SLA ≥ ${check.minutes}m`, detail: `current=${n}` };
+    }
+    case 'emailOnFailure': {
+      const v = findTask(findDag(state, check.dagId), check.taskId)?.emailOnFailure ?? false;
+      return { met: v === check.value, label: `email_on_failure=${check.value}`, detail: `current=${v}` };
+    }
+    case 'maxActiveRunsIs': {
+      const v = findDag(state, check.dagId)?.maxActiveRuns;
+      return { met: v === check.value, label: `max_active_runs=${check.value}`, detail: `current=${v}` };
+    }
+    case 'mappedCountAtLeast': {
+      const n = findTask(findDag(state, check.dagId), check.taskId)?.mappedCount ?? 0;
+      return { met: n >= check.min, label: `mapped ≥ ${check.min}`, detail: `current=${n}` };
+    }
+    case 'taskFlowUsed': {
+      const met = !!findDag(state, check.dagId)?.usesTaskFlow;
+      return { met, label: 'TaskFlow (@task) used', detail: met ? 'ok' : 'mark dag/task with --taskflow' };
+    }
+    case 'branchSelects': {
+      const t = findTask(findDag(state, check.dagId), check.taskId);
       return {
-        met: n >= check.min,
-        label: `At least ${check.min} backfill run(s)`,
-        detail: `current=${n}`,
+        met: t?.operator === 'BranchPythonOperator' && t.branchTarget === check.target,
+        label: `branch ${check.taskId} → ${check.target}`,
+        detail: `current=${t?.branchTarget ?? '(none)'}`,
       };
+    }
+    case 'xcomHasKey': {
+      const dag = findDag(state, check.dagId);
+      const run = latestRun(dag);
+      const bag = run ? state.xcoms[`${check.dagId}::${run.run_id}::${check.taskId}`] : undefined;
+      const met = !!(bag && bag[check.key] !== undefined);
+      return { met, label: `XCom ${check.taskId}.${check.key}`, detail: met ? 'ok' : 'run task that pushes XCom' };
+    }
+    case 'datasetRegistered': {
+      const met = state.datasets[check.uri] !== undefined;
+      return { met, label: `Dataset ${check.uri}`, detail: met ? 'ok' : `dataset register ${check.uri}` };
+    }
+    case 'executorIs': {
+      return { met: state.executor === check.value, label: `executor=${check.value}`, detail: `current=${state.executor}` };
+    }
+    case 'dagTested': {
+      const met = state.lastTestedDagId === check.dagId;
+      return { met, label: `dag test ${check.dagId}`, detail: met ? 'ok' : `run \`dag test ${check.dagId}\`` };
+    }
+    case 'logExists': {
+      const run = latestRun(findDag(state, check.dagId));
+      const ti = run?.taskInstances.find((t) => t.task_id === check.taskId);
+      return { met: !!ti && ti.try_number > 0, label: `logs for ${check.taskId}`, detail: ti ? `try=${ti.try_number}` : 'no TI' };
+    }
+    case 'importErrorCleared': {
+      return { met: !state.importError, label: 'No import errors', detail: state.importError ?? 'ok' };
+    }
+    case 'templateFieldUsed': {
+      const t = findTask(findDag(state, check.dagId), check.taskId);
+      const met = !!t?.templateFields?.some((f) => f.includes(check.field));
+      return { met, label: `template uses ${check.field}`, detail: met ? 'ok' : 'task update --template {{ ds }}' };
     }
     case 'allOf': {
       const results = check.checks.map((c) => checkOne(state, c));
@@ -224,3 +232,5 @@ export function evaluateGoal(
 export function flattenGoal(goal: GoalCheck): GoalCheck[] {
   return goal.kind === 'allOf' ? goal.checks : [goal];
 }
+
+export { TRIGGER_RULES };

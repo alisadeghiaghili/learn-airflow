@@ -10,10 +10,11 @@ Airflow turns scheduled data work into **DAGs** — tasks, dependencies, schedul
 
 | World | ID prefix | What you learn |
 |-------|-----------|----------------|
-| Introduction | `intro-` | `db init` → author DAG → add task → unpause → trigger → run history |
-| Structure | `struct-` | tasks, `>>` edges, `upstream_failed`, `tasks clear` recovery |
-| Scheduling | `sched-` | schedule, catchup, backfill, pause |
-| Ops | `ops-` | variables, connections, retries, full recovery drill |
+| Introduction | `intro-` | architecture, DAG, operator, logical date / data interval, trigger, `dag.test()` |
+| Structure | `struct-` | edges, `upstream_failed`, clear/recover, **trigger rules**, branching |
+| Data & TaskFlow | `data-` | XCom, `@task`, templates (`{{ ds }}`), dynamic task mapping |
+| Scheduling | `sched-` | cron/presets, `max_active_runs`, catchup/backfill, datasets |
+| Ops | `ops-` | retries, pools/SLA/alerts, Variables/Connections, executor, logs, capstone ETL |
 
 Start at **`intro-1`**. Each level has:
 

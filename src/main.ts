@@ -18,7 +18,7 @@ if (!params.has('NODEMO')) {
         '',
         'Board: **DAG folder → Graph → Runs**. Each level is one idea; solve worlds in order.',
         '',
-        `- **Introduction:** init → DAG → task → unpause → trigger (first green run)\n- **Structure:** edges, \`upstream_failed\`, clear/recover\n- **Scheduling:** schedule, catchup, backfill, pause\n- **Ops:** variables, connections, retries, recovery drill`,
+        `- **Introduction:** architecture, DAG, task, logical date, trigger, dag.test()\n- **Structure:** edges, trigger rules, branching, clear/recover\n- **Data & TaskFlow:** XCom, @task, templates, dynamic mapping\n- **Scheduling:** cron, max_active_runs, catchup/backfill, datasets\n- **Ops:** retries, pools/SLA, connections, executor, logs, capstone`,
         '',
         'Meta: `levels`, `hint`, `show goal`, `show solution`, `reset`, `undo`, `sandbox`, `help`.',
         '',

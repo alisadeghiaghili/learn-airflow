@@ -930,9 +930,11 @@ export const opsLevels: LevelDef[] = [
 ];
 
 import { advancedLevels } from './advanced';
+import { incidentLevels } from './incident';
 
 export const allLevels: LevelDef[] = [
   ...advancedLevels,
+  ...incidentLevels,
   ...introLevels,
   ...structureLevels,
   ...dataLevels,
@@ -978,6 +980,12 @@ export function seriesOf(): { id: string; title: string; blurb: string; levels: 
       title: 'Scheduling',
       blurb: 'Cron, max_active_runs, catchup/backfill, datasets.',
       levels: allLevels.filter((l) => l.series === 'sched'),
+    },
+    {
+      id: 'incident',
+      title: 'Incident',
+      blurb: 'On-call drill: triage, contain, harden, close.',
+      levels: allLevels.filter((l) => l.series === 'incident'),
     },
     {
       id: 'advanced',

@@ -189,6 +189,7 @@ export type GoalCheck =
   | { kind: 'deployTargetIs'; dagId: string; target: string }
   | { kind: 'priorityAtLeast'; dagId: string; taskId: string; min: number }
   | { kind: 'startDateSafe'; dagId: string }
+  | { kind: 'pythonParsed'; dagId: string }
   | { kind: 'allOf'; checks: GoalCheck[] };
 
 export interface SolutionStepStatus {

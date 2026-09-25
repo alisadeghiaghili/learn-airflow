@@ -258,6 +258,14 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
         detail: state.startDateSafe ? 'ok' : 'run `dag audit start_date`',
       };
     }
+    case 'pythonParsed': {
+      const dag = findDag(state, check.dagId);
+      return {
+        met: !!dag && !state.importError,
+        label: `Python DAG '${check.dagId}' parsed`,
+        detail: state.importError ?? (dag ? 'ok' : 'not loaded'),
+      };
+    }
     case 'allOf': {
       const results = check.checks.map((c) => checkOne(state, c));
       return {

@@ -197,6 +197,11 @@ function stepStatus(state: AirflowState, command: string): SolutionStepStatus {
   if (/^dag\s+audit\s+start_date\b/.test(cmd)) {
     return state.startDateSafe ? ok('start_date safe') : fail(cmd);
   }
+  if (/^dagfile\s+(demo|load)\b/.test(cmd)) {
+    const name = cmd.split(/\s+/)[2] ?? '';
+    const dag = findDag(state, name === 'etl' ? 'etl' : name === 'bad' ? 'bad' : name === 'taskflow' ? 'tf' : name);
+    return dag ? ok(`parsed ${dag.dag_id}`) : fail(cmd);
+  }
   if (/^pool\s+set\b/.test(cmd)) {
     const name = cmd.split(/\s+/)[2] ?? '';
     return state.pools.some((p) => p.name === name) ? ok(`pool ${name}`) : fail(cmd);

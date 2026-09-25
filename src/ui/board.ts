@@ -1,5 +1,6 @@
 import type { AirflowState, DagDef, TaskState } from '../engine/types';
 import { latestRun } from '../engine/state';
+import { renderSvgGraph } from './graph';
 
 function esc(s: string): string {
   return s
@@ -120,7 +121,7 @@ export function renderBoardHtml(state: AirflowState): string {
       <section class="zone graph" aria-label="Task graph">
         <h2><span class="dot" style="color:var(--run)"></span> Graph</h2>
         <p class="zone-hint">Tasks · operators · dependency edges</p>
-        ${renderGraph(active)}
+        ${renderSvgGraph(active, state)}
       </section>
       <section class="zone runs" aria-label="DAG runs">
         <h2><span class="dot" style="color:var(--sched)"></span> Runs</h2>

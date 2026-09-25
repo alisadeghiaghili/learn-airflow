@@ -19,6 +19,7 @@ import {
   syncRunInstances,
   TRIGGER_RULES,
 } from './state';
+import { installParsedDag } from './dagfile';
 
 export type ExecResult = { state: AirflowState; result: CommandResult };
 
@@ -563,6 +564,78 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
     if (!dag) return failR('ERROR: no DAG for deploy target.');
     dag.deployTarget = target;
     return okR(`deploy target for ${dag.dag_id}: ${target}`);
+  }
+
+  if (sub === 'dagfile') {
+    // dagfile demo <name> | dagfile load <name> | dagfile show <name>
+    const dsub = args[1];
+    const name = args[2];
+    if (dsub === 'demo' || dsub === 'load') {
+      const demos: Record<string, string> = {
+        etl: `from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime
+from pendulum import timezone
+
+with DAG(
+    dag_id="etl",
+    schedule="@daily",
+    start_date=datetime(2024, 1, 1, tzinfo=timezone("UTC")),
+    catchup=False,
+    max_active_runs=1,
+) as dag:
+    extract = PythonOperator(task_id="extract", retries=1)
+    transform = PythonOperator(task_id="transform")
+    load = PythonOperator(task_id="load")
+    extract >> transform >> load
+`,
+        bad: `from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime
+
+with DAG(
+    dag_id="bad",
+    schedule="@daily",
+    start_date=datetime.now(),
+) as dag:
+    t1 = PythonOperator(task_id="t1")
+`,
+        taskflow: `from airflow import DAG
+from airflow.decorators import task
+from datetime import datetime
+from pendulum import timezone
+
+with DAG(
+    dag_id="tf",
+    schedule="@daily",
+    start_date=datetime(2024, 1, 1, tzinfo=timezone("UTC")),
+) as dag:
+    @task
+    def extract():
+        return {"rows": 1}
+
+    @task
+    def load():
+        return "ok"
+
+    extract() >> load()
+`,
+      };
+      const src = demos[name ?? 'etl'];
+      if (!src) return failR('Usage: dagfile demo <etl|bad|taskflow>');
+      const out = installParsedDag(state, src);
+      const res = out.result;
+      if (!res.ok) {
+        return { state: out.state, result: fail(res.error ?? 'parse failed') };
+      }
+      return {
+        state: out.state,
+        result: okR(
+          ['Import OK — DAG parsed from Python.', ...res.warnings.map((w) => `warn: ${w}`), ...res.notes].join('\n'),
+        ),
+      };
+    }
+    return failR('Usage: dagfile demo <etl|bad|taskflow>');
   }
 
   if (sub === 'executor') {

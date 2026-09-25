@@ -204,6 +204,60 @@ function checkOne(state: AirflowState, check: GoalCheck): GoalStatus {
       const met = !!t?.templateFields?.some((f) => f.includes(check.field));
       return { met, label: `template uses ${check.field}`, detail: met ? 'ok' : 'task update --template {{ ds }}' };
     }
+    case 'sensorConfigured': {
+      const t = findTask(findDag(state, check.dagId), check.taskId);
+      const isSensor = !!t && (t.sensor || /Sensor$/.test(t.operator));
+      const defOk = check.deferrable === undefined || !!t?.deferrable === check.deferrable;
+      const softOk = check.softFail === undefined || !!t?.softFail === check.softFail;
+      return {
+        met: isSensor && defOk && softOk,
+        label: `sensor ${check.taskId}`,
+        detail: t ? `op=${t.operator} deferrable=${!!t.deferrable} soft_fail=${!!t.softFail}` : 'missing',
+      };
+    }
+    case 'customOperator': {
+      const t = findTask(findDag(state, check.dagId), check.taskId);
+      return {
+        met: t?.operator === 'CustomOperator',
+        label: `custom operator ${check.taskId}`,
+        detail: t ? `op=${t.operator}` : 'missing',
+      };
+    }
+    case 'timetableIs': {
+      const dag = findDag(state, check.dagId);
+      return {
+        met: dag?.timetable === check.timetable,
+        label: `timetable=${check.timetable}`,
+        detail: `current=${dag?.timetable ?? '(cron only)'}`,
+      };
+    }
+    case 'secretsBackendIs': {
+      return {
+        met: state.secretsBackend === check.backend,
+        label: `secrets backend=${check.backend}`,
+        detail: `current=${state.secretsBackend}`,
+      };
+    }
+    case 'deployTargetIs': {
+      const dag = findDag(state, check.dagId);
+      return {
+        met: dag?.deployTarget === check.target,
+        label: `deploy ${check.target}`,
+        detail: `current=${dag?.deployTarget ?? '(none)'}`,
+      };
+    }
+    case 'priorityAtLeast': {
+      const n = findTask(findDag(state, check.dagId), check.taskId)?.priorityWeight ?? 1;
+      return { met: n >= check.min, label: `priority_weight ≥ ${check.min}`, detail: `current=${n}` };
+    }
+    case 'startDateSafe': {
+      const dag = findDag(state, check.dagId);
+      return {
+        met: state.startDateSafe === true && !!dag,
+        label: 'start_date is a fixed calendar time',
+        detail: state.startDateSafe ? 'ok' : 'run `dag audit start_date`',
+      };
+    }
     case 'allOf': {
       const results = check.checks.map((c) => checkOne(state, c));
       return {

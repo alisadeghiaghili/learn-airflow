@@ -36,6 +36,7 @@ export function emptyState(): AirflowState {
     xcoms: {},
     datasets: {},
     executor: 'LocalExecutor',
+    secretsBackend: 'airflow',
     clock: '2024-06-01T02:00:00+00:00',
   };
 }
@@ -62,6 +63,11 @@ export function makeTask(task_id: string, opts: Partial<TaskDef> = {}): TaskDef 
     branchTarget: opts.branchTarget,
     xcomKeys: opts.xcomKeys,
     sensor: opts.sensor,
+    deferrable: opts.deferrable,
+    softFail: opts.softFail,
+    pokeIntervalSec: opts.pokeIntervalSec ?? 60,
+    timeoutSec: opts.timeoutSec ?? 3600,
+    customClass: opts.customClass,
   };
 }
 

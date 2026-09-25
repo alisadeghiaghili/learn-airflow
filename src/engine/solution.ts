@@ -109,6 +109,14 @@ function stepStatus(state: AirflowState, command: string): SolutionStepStatus {
       return dag.datasetInlets.length ? ok('dataset inlet set') : fail(cmd);
     }
     if (cmd.includes('--taskflow')) return dag.usesTaskFlow ? ok('taskflow=true') : fail(cmd);
+    if (cmd.includes('--timetable')) {
+      const m = cmd.match(/--timetable\s+(\S+)/);
+      return dag.timetable === (m?.[1] ?? '') ? ok(`timetable=${dag.timetable}`) : fail(cmd);
+    }
+    if (cmd.includes('--deploy')) {
+      const m = cmd.match(/--deploy\s+(\S+)/);
+      return dag.deployTarget === (m?.[1] ?? '') ? ok(`deploy=${dag.deployTarget}`) : fail(cmd);
+    }
     return ok('dag updated');
   }
   if (/^dag\s+test\b/.test(cmd)) {
@@ -175,6 +183,19 @@ function stepStatus(state: AirflowState, command: string): SolutionStepStatus {
     const task = findTask(findDag(state, parts[1] ?? ''), parts[2] ?? '');
     const target = parts[4] ?? '';
     return task?.branchTarget === target ? ok(`branch → ${target}`) : fail(cmd);
+  }
+  if (/^airflow\s+secrets\b/.test(cmd)) {
+    const m = cmd.match(/backend\s+set\s+(\S+)/);
+    const want = m?.[1];
+    return want ? (state.secretsBackend === want ? ok(`secrets_backend=${state.secretsBackend}`) : fail(cmd)) : ok(`secrets_backend=${state.secretsBackend}`);
+  }
+  if (/^airflow\s+deploy\s+set\b/.test(cmd)) {
+    const target = cmd.split(/\s+/).at(-1) ?? '';
+    const dag = findDag(state, state.activeDagId ?? '');
+    return dag?.deployTarget === target ? ok(`deploy=${target}`) : fail(cmd);
+  }
+  if (/^dag\s+audit\s+start_date\b/.test(cmd)) {
+    return state.startDateSafe ? ok('start_date safe') : fail(cmd);
   }
   if (/^pool\s+set\b/.test(cmd)) {
     const name = cmd.split(/\s+/)[2] ?? '';

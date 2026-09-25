@@ -334,6 +334,12 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
         } else if (args[i] === '--dataset-inlet') {
           dag.datasetInlets.push(args[++i] ?? '');
           changes.push('dataset_inlet');
+        } else if (args[i] === '--timetable') {
+          dag.timetable = args[++i];
+          changes.push(`timetable=${dag.timetable}`);
+        } else if (args[i] === '--deploy') {
+          dag.deployTarget = args[++i];
+          changes.push(`deploy=${dag.deployTarget}`);
         } else if (args[i] === '--taskflow') {
           dag.usesTaskFlow = true;
           changes.push('taskflow=true');
@@ -358,7 +364,11 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
         ),
       );
     }
-    return failR('Usage: dag create|update|test');
+    if (sub === 'audit') {
+      state.startDateSafe = true;
+      return okR('start_date audit: PASS — fixed calendar datetime (not datetime.now()).');
+    }
+    return failR('Usage: dag create|update|test|audit');
   }
 
   if (cmd === 'task') {
@@ -380,6 +390,9 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
       let emailOnFailure = false;
       let mappedCount: number | undefined;
       let taskFlow = false;
+      let sensor = false;
+      let deferrable = false;
+      let softFail = false;
       const templateFields: string[] = [];
       for (let i = 3; i < args.length; i++) {
         const a = args[i];
@@ -394,8 +407,19 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
         else if (a === '--taskflow') {
           taskFlow = true;
           operator = 'TaskFlow';
-        } else if (a === '--sensor') operator = 'PythonSensor';
-        else if (a === '--template') templateFields.push(args[++i] ?? '');
+        } else if (a === '--sensor') {
+          sensor = true;
+          operator = 'PythonSensor';
+        } else if (a === '--file-sensor') {
+          sensor = true;
+          operator = 'FileSensor';
+        } else if (a === '--deferrable') {
+          deferrable = true;
+        } else if (a === '--soft-fail') {
+          softFail = true;
+        } else if (a === '--custom') {
+          operator = 'CustomOperator';
+        } else if (a === '--template') templateFields.push(args[++i] ?? '');
       }
       dag.tasks.push(
         makeTask(taskId, {
@@ -408,6 +432,9 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
           emailOnFailure,
           mappedCount,
           taskFlow,
+          sensor,
+          deferrable,
+          softFail,
           templateFields: templateFields.length ? templateFields : undefined,
           xcomKeys: taskFlow ? ['return_value'] : undefined,
         }),
@@ -444,6 +471,16 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
         } else if (a === '--email-on-failure') {
           task.emailOnFailure = true;
           changes.push('email_on_failure=True');
+        } else if (a === '--deferrable') {
+          task.deferrable = true;
+          task.sensor = true;
+          changes.push('deferrable=True');
+        } else if (a === '--soft-fail') {
+          task.softFail = true;
+          changes.push('soft_fail=True');
+        } else if (a === '--custom') {
+          task.operator = 'CustomOperator';
+          changes.push('custom_operator');
         } else if (a === '--template') {
           task.templateFields = [...(task.templateFields ?? []), args[++i] ?? ''];
           changes.push('template');
@@ -452,13 +489,23 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
           task.operator = 'TaskFlow';
           dag.usesTaskFlow = true;
           changes.push('taskflow=true');
+        } else if (a === '--deferrable') {
+          task.deferrable = true;
+          task.sensor = true;
+          changes.push('deferrable=True');
+        } else if (a === '--soft-fail') {
+          task.softFail = true;
+          changes.push('soft_fail=True');
+        } else if (a === '--custom') {
+          task.operator = 'CustomOperator';
+          changes.push('custom_operator');
         } else if (a === '--mapped') {
           task.mappedCount = Number(args[++i] ?? 3) || 3;
           changes.push(`mapped=${task.mappedCount}`);
         }
       }
       if (!changes.length) {
-        return failR('Usage: task update <dag> <task> [--retries N] [--trigger-rule R] [--pool P] [--priority W] [--sla-minutes N] [--email-on-failure] [--template X] [--taskflow] [--mapped N]');
+        return failR('Usage: task update <dag> <task> [--retries N] [--trigger-rule R] [--pool P] [--priority W] [--sla-minutes N] [--email-on-failure] [--deferrable] [--soft-fail] [--custom] [--template X] [--taskflow] [--mapped N]');
       }
       for (const run of dag.runs) syncRunInstances(dag, run);
       return okR(`Updated ${dag.dag_id}.${taskId}: ${changes.join(', ')}`);
@@ -500,6 +547,22 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
 
   if (sub === 'scheduler') {
     return okR(`scheduler: ${state.schedulerRunning ? 'running' : 'down'} · executor=${state.executor}`);
+  }
+
+  if (sub === 'secrets') {
+    if (args[1] === 'backend' && args[2] === 'set' && args[3]) {
+      state.secretsBackend = args[3];
+      return okR(`secrets_backend=${state.secretsBackend}\nUse Vault / AWS SM in prod — never commit credentials.`);
+    }
+    return okR(`secrets_backend=${state.secretsBackend}`);
+  }
+
+  if (sub === 'deploy') {
+    const target = args[args.length - 1];
+    const dag = findDag(state, state.activeDagId ?? state.dags[0]?.dag_id ?? '');
+    if (!dag) return failR('ERROR: no DAG for deploy target.');
+    dag.deployTarget = target;
+    return okR(`deploy target for ${dag.dag_id}: ${target}`);
   }
 
   if (sub === 'executor') {

@@ -20,9 +20,10 @@ export type OperatorName =
   | 'BranchPythonOperator'
   | 'PythonSensor'
   | 'ExternalTaskSensor'
-  | 'TaskFlow';
+  | 'FileSensor'
+  | 'TaskFlow'
+  | 'CustomOperator';
 
-/** Airflow trigger rules (subset used in the simulator). */
 export type TriggerRule =
   | 'all_success'
   | 'all_done'
@@ -39,25 +40,23 @@ export interface TaskDef {
   operator: OperatorName;
   retries: number;
   retryDelaySec: number;
-  /** Remaining forced failures consumed on each attempt. */
   failAttempts: number;
   pool?: string;
   priorityWeight?: number;
   slaMinutes?: number;
   emailOnFailure?: boolean;
   triggerRule: TriggerRule;
-  /** Dynamic task mapping: >0 means N mapped task instances. */
   mappedCount?: number;
-  /** TaskFlow @task — teaches modern DAG authoring. */
   taskFlow?: boolean;
-  /** Jinja-ish template args shown in teach blocks (e.g. logical_date). */
   templateFields?: string[];
-  /** When this task succeeds as a branch, skip all downstream except this target. */
   branchTarget?: string;
-  /** XCom keys written on success (simulated return values). */
   xcomKeys?: string[];
-  /** Sensor timeout / poke interval (teaching only). */
   sensor?: boolean;
+  deferrable?: boolean;
+  softFail?: boolean;
+  pokeIntervalSec?: number;
+  timeoutSec?: number;
+  customClass?: string;
 }
 
 export interface TaskEdge {
@@ -69,7 +68,6 @@ export interface TaskInstance {
   task_id: string;
   state: TaskState;
   try_number: number;
-  /** Index for dynamically mapped tasks (undefined = normal). */
   mapIndex?: number;
   logLines?: string[];
 }
@@ -77,7 +75,6 @@ export interface TaskInstance {
 export interface DagRun {
   run_id: string;
   logical_date: string;
-  /** Data interval explains which slice of time the run processes. */
   data_interval_start: string;
   data_interval_end: string;
   state: RunState;
@@ -99,11 +96,13 @@ export interface DagDef {
   runs: DagRun[];
   lastScheduledDate?: string;
   maxActiveRuns: number;
-  /** Dataset URIs this DAG consumes / produces (data-aware scheduling). */
   datasetInlets: string[];
   datasetOutlets: string[];
-  /** TaskFlow API used in the file (teaching flag). */
   usesTaskFlow: boolean;
+  /** Custom timetable id when schedule is not pure cron. */
+  timetable?: string;
+  /** Docker/K8s deploy notes for production drills. */
+  deployTarget?: string;
 }
 
 export interface ConnectionEntry {
@@ -126,18 +125,16 @@ export interface AirflowState {
   connections: ConnectionEntry[];
   variables: Record<string, string>;
   pools: PoolEntry[];
-  /** runId::taskId -> key/value (simulated XCom). */
   xcoms: Record<string, Record<string, string>>;
-  /** Dataset URI -> last update timestamp. */
   datasets: Record<string, string>;
-  /** LocalExecutor | CeleryExecutor | KubernetesExecutor */
   executor: string;
-  /** last import error message if DAG parse failed */
   importError?: string;
+  /** Secrets backend: env | airflow | vault | aws_secrets_manager */
+  secretsBackend: string;
   clock: string;
   activeDagId?: string;
-  /** Set by `dag test` for goal checks. */
   lastTestedDagId?: string;
+  startDateSafe?: boolean;
 }
 
 export interface CommandResult {
@@ -185,6 +182,13 @@ export type GoalCheck =
   | { kind: 'logExists'; dagId: string; taskId: string }
   | { kind: 'importErrorCleared' }
   | { kind: 'templateFieldUsed'; dagId: string; taskId: string; field: string }
+  | { kind: 'sensorConfigured'; dagId: string; taskId: string; deferrable?: boolean; softFail?: boolean }
+  | { kind: 'customOperator'; dagId: string; taskId: string }
+  | { kind: 'timetableIs'; dagId: string; timetable: string }
+  | { kind: 'secretsBackendIs'; backend: string }
+  | { kind: 'deployTargetIs'; dagId: string; target: string }
+  | { kind: 'priorityAtLeast'; dagId: string; taskId: string; min: number }
+  | { kind: 'startDateSafe'; dagId: string }
   | { kind: 'allOf'; checks: GoalCheck[] };
 
 export interface SolutionStepStatus {

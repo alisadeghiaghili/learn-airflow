@@ -931,8 +931,10 @@ export const opsLevels: LevelDef[] = [
 
 import { advancedLevels } from './advanced';
 import { incidentLevels } from './incident';
+import { guideLevels } from './af3';
 
 export const allLevels: LevelDef[] = [
+  ...guideLevels,
   ...advancedLevels,
   ...incidentLevels,
   ...introLevels,
@@ -980,6 +982,12 @@ export function seriesOf(): { id: string; title: string; blurb: string; levels: 
       title: 'Scheduling',
       blurb: 'Cron, max_active_runs, catchup/backfill, datasets.',
       levels: allLevels.filter((l) => l.series === 'sched'),
+    },
+    {
+      id: 'af3',
+      title: 'Airflow 3',
+      blurb: '@asset, data-aware story, triggerer/dag-processor, tests, event-driven.',
+      levels: allLevels.filter((l) => l.series === 'af3'),
     },
     {
       id: 'incident',

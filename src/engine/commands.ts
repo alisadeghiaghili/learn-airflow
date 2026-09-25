@@ -515,6 +515,12 @@ export function executeCommand(prev: AirflowState, rawInput: string): ExecResult
   }
 
   // ── airflow CLI ────────────────────────────────────────────
+  if (cmd === 'dagfile') {
+    return executeCommand(prev, `airflow dagfile ${args.join(' ')}`);
+  }
+  if (cmd === 'dagfile') {
+    return executeCommand(prev, `airflow dagfile ${args.join(' ')}`);
+  }
   if (cmd !== 'airflow') return failR(`command not found: ${cmd}. Type \`help\`.`);
 
   const sub = args[0];
@@ -630,7 +636,7 @@ with DAG(
       }
       return {
         state: out.state,
-        result: okR(
+        result: ok(
           ['Import OK — DAG parsed from Python.', ...res.warnings.map((w) => `warn: ${w}`), ...res.notes].join('\n'),
         ),
       };

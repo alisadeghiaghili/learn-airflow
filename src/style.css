@@ -79,12 +79,77 @@ button,
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 7px 12px;
   font-family: var(--ui);
   font-size: 13px;
   cursor: pointer;
   min-height: 36px;
+}
+
+/* LGB-style toolbar pills */
+.tbtn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid #2c3e52;
+  background: linear-gradient(180deg, #243447 0%, #1a2836 100%);
+  color: #e8eef7;
+  font-family: var(--ui);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.tbtn:hover {
+  background: linear-gradient(180deg, #2c3f55 0%, #223245 100%);
+  border-color: #3d5470;
+  color: #fff;
+}
+
+.tbtn:active {
+  transform: translateY(1px);
+}
+
+.tbtn:focus-visible {
+  outline: 2px solid var(--airflow);
+  outline-offset: 2px;
+}
+
+.tbtn.lang {
+  min-width: 72px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.tbtn.icon {
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tbtn.coffee {
+  background: linear-gradient(180deg, #c4a35a 0%, #9a7428 100%);
+  border-color: #d4b56a;
+  color: #1a1204;
+  font-weight: 600;
+  padding: 0 18px;
+}
+
+.tbtn.coffee:hover {
+  background: linear-gradient(180deg, #d4b56a 0%, #b08a32 100%);
+  color: #120d02;
 }
 
 button:hover,

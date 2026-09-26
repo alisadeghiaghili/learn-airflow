@@ -66,13 +66,18 @@ export class App {
         <div class="brand">Learn<span>Airflow</span></div>
         <div class="level-title" id="level-title"></div>
         <div class="toolbar-actions">
-          <button type="button" data-action="levels">Levels</button>
-          <button type="button" data-action="goal">Goal</button>
-          <button type="button" data-action="hint">Hint</button>
-          <button type="button" data-action="solution">Solution</button>
-          <button type="button" data-action="undo">Undo</button>
-          <button type="button" data-action="reset">Reset</button>
-          <button type="button" data-action="sandbox" class="ghost">Sandbox</button>
+          <button type="button" class="tbtn lang" data-action="lang" aria-haspopup="listbox">EN ▾</button>
+          <button type="button" class="tbtn" data-action="levels">Levels</button>
+          <button type="button" class="tbtn" data-action="lesson">Lesson</button>
+          <button type="button" class="tbtn" data-action="guide">Guide</button>
+          <button type="button" class="tbtn" data-action="hint">Hint</button>
+          <button type="button" class="tbtn" data-action="solution">Solution</button>
+          <button type="button" class="tbtn" data-action="undo">Undo</button>
+          <button type="button" class="tbtn" data-action="reset">Reset</button>
+          <button type="button" class="tbtn" data-action="sandbox">Sandbox</button>
+          <button type="button" class="tbtn icon" data-action="guide" title="Help" aria-label="Help">?</button>
+          <a class="tbtn icon" href="https://github.com/alisadeghiaghili/learn-airflow" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub">GH</a>
+          <a class="tbtn coffee" href="https://linktr.ee/aliaghili" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>
         </div>
       </header>
       <div class="stage no-dock" id="stage">
@@ -92,11 +97,19 @@ export class App {
         const action = btn.dataset.action;
         if (action === 'levels') this.openLevels();
         if (action === 'goal') this.toggleGoal();
+        if (action === 'lesson') {
+          if (this.level) this.showIntro(this.level);
+          else this.pushMeta('Open Levels first, then Lesson shows that level’s intro.');
+        }
+        if (action === 'guide') this.handleCommand('help');
         if (action === 'hint') this.handleCommand('hint');
         if (action === 'solution') this.handleCommand('show solution');
         if (action === 'undo') this.handleCommand('undo');
         if (action === 'reset') this.handleCommand('reset');
         if (action === 'sandbox') this.handleCommand('sandbox');
+        if (action === 'lang') {
+          this.pushMeta('Locale: English (this build). Persian pack is a future item.');
+        }
         this.terminal.focus();
       });
     });
